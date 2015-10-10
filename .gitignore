@@ -1,0 +1,7 @@
+Thumbs.db
+*.suo
+Debug/
+Release/
+*.opensdf
+*.sdf
+.vs/
