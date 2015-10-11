@@ -24,7 +24,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		return 1;
 	}
 
-	RECT clientRect = { 0, 0, 960, 540 };
+	const int gameWindowWidth = 960;
+	const int gameWindowHeight = 540;
+
+	RECT clientRect = { 0, 0, gameWindowWidth, gameWindowHeight };
 	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 	AdjustWindowRect(&clientRect, windowStyle, NULL);
 	HWND hWnd = CreateWindowEx(NULL, wc.lpszClassName, L"Game of Life", windowStyle, 300, 0,
@@ -38,14 +41,43 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
+	//
+
+	const int bitmapWidth = gameWindowWidth;
+	const int bitmapHeight = gameWindowHeight;
+
+	BITMAPINFO bitmapInfo = { 0 };
+	bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
+	bitmapInfo.bmiHeader.biWidth = bitmapWidth;
+	bitmapInfo.bmiHeader.biHeight = bitmapHeight;
+	bitmapInfo.bmiHeader.biPlanes = 1;
+	bitmapInfo.bmiHeader.biBitCount = 32;
+	bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+	const int bitmapBytesPerPixel = 4;
+	const int bitmapMemorySize = bitmapWidth * bitmapHeight * bitmapBytesPerPixel;
+	void *bitmapBuffer = VirtualAlloc(0, bitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	{
+		int *pixel = (int*)bitmapBuffer;
+		for (int i = 0; i < bitmapMemorySize; i += bitmapBytesPerPixel) {
+			*pixel = 0xFFFF0000;
+			pixel++;
+		}
+	}
+
+	//
+
 	LARGE_INTEGER perfCounterFrequency = { 0 };
 	QueryPerformanceFrequency(&perfCounterFrequency);
 	LARGE_INTEGER perfCounter = { 0 };
 	QueryPerformanceCounter(&perfCounter);
 	LARGE_INTEGER prevPerfCounter = { 0 };
+	
 	float dt = 0.0f;
 	const float targetFps = 60.0f;
 	const float targetDt = 1.0f / targetFps;
+	
 	bool gameIsRunning = true;
 
 	while (gameIsRunning) {
@@ -75,6 +107,11 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				break;
 			}
 		}
+
+		HDC hDC = GetDC(hWnd);
+		StretchDIBits(hDC, 0, 0, bitmapWidth, bitmapHeight, 0, 0, bitmapWidth, bitmapHeight,
+			bitmapBuffer, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+		ReleaseDC(hWnd, hDC);
 	}
 
 	return 0;
