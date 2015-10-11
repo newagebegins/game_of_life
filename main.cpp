@@ -1,42 +1,82 @@
 #include <windows.h>
 #include <time.h>
 
-static const int GAME_WIDTH = 700;
-static const int GAME_HEIGHT = 700;
-
+static const int DEFAULT_WINDOW_WIDTH = 500;
+static const int DEFAULT_WINDOW_HEIGHT = 500;
 static const int CELL_WIDTH_PX = 5;
 static const int CELL_HEIGHT_PX = 5;
-
-static const int CELL_COLS = GAME_WIDTH / CELL_WIDTH_PX;
-static const int CELL_ROWS = GAME_HEIGHT / CELL_HEIGHT_PX;
-
 static const int CELL_COLOR_ALIVE = 0xFFFF0000;
 static const int CELL_COLOR_DEAD = 0xFF000000;
-
 static const float TICK_DURATION = 0.1f;
 
-inline int getLiveNeighbourCount(bool *cells, int row, int col) {
+static int globalWindowWidth;
+static int globalWindowHeight;
+
+struct GameState {
+	int cellCols, cellRows;
+	bool *cells1, *cells2;
+	bool *cells, *newCells;
+	float tickTimer;
+	BITMAPINFO *bitmapInfo;
+	int *bitmapBuffer;
+	int bitmapWidth, bitmapHeight;
+};
+
+inline int getLiveNeighbourCount(GameState *state, const int row, const int col) {
 	int count = 0;
 	const int NEIGHBOUR_COUNT = 8;
-	int neighbours[NEIGHBOUR_COUNT][2] = {
+	const int neighbours[NEIGHBOUR_COUNT][2] = {
 		{ -1, -1 },{ -1, 0 },{ -1, 1 },
 		{  0, -1 },          {  0, 1 },
 		{  1, -1 },{  1, 0 },{  1, 1 },
 	};
 
 	for (int i = 0; i < NEIGHBOUR_COUNT; ++i) {
-		int r = (row + neighbours[i][0]) % CELL_ROWS;
-		if (r < 0)
-			r += CELL_ROWS;
-		int c = (col + neighbours[i][1]) % CELL_COLS;
-		if (c < 0)
-			c += CELL_COLS;
-		bool *cell = cells + r*CELL_COLS + c;
-		if (*cell)
-			++count;
+		int r = (row + neighbours[i][0]) % state->cellRows;
+		if (r < 0) r += state->cellRows;
+		int c = (col + neighbours[i][1]) % state->cellCols;
+		if (c < 0) c += state->cellCols;
+		bool *cell = state->cells + r*state->cellCols + c;
+		if (*cell) ++count;
 	}
 	
 	return count;
+}
+
+static void initGame(GameState *state, const int windowWidth, const int windowHeight) {
+	state->cellCols = windowWidth / CELL_WIDTH_PX;
+	state->cellRows = windowHeight / CELL_HEIGHT_PX;
+
+	if (state->cells1) free(state->cells1);
+	state->cells1 = (bool *)malloc(state->cellRows * state->cellCols * sizeof(bool));
+	
+	if (state->cells2) free(state->cells2);
+	state->cells2 = (bool *)malloc(state->cellRows * state->cellCols * sizeof(bool));
+
+	state->cells = state->cells1;
+	state->newCells = state->cells2;
+
+	// seed initial cells
+	for (int row = 0; row < state->cellRows; ++row)
+		for (int col = 0; col < state->cellCols; ++col)
+			*(state->cells + row*state->cellCols + col) = (rand() % 2) != 0;
+
+	state->tickTimer = 0.0f;
+
+	state->bitmapWidth = windowWidth;
+	state->bitmapHeight = windowHeight;
+
+	if (state->bitmapInfo) free(state->bitmapInfo);
+	state->bitmapInfo = (BITMAPINFO *)malloc(sizeof(BITMAPINFO));
+	state->bitmapInfo->bmiHeader.biSize = sizeof(state->bitmapInfo->bmiHeader);
+	state->bitmapInfo->bmiHeader.biWidth = state->bitmapWidth;
+	state->bitmapInfo->bmiHeader.biHeight = state->bitmapHeight;
+	state->bitmapInfo->bmiHeader.biPlanes = 1;
+	state->bitmapInfo->bmiHeader.biBitCount = 32;
+	state->bitmapInfo->bmiHeader.biCompression = BI_RGB;
+
+	if (state->bitmapBuffer) free(state->bitmapBuffer);
+	state->bitmapBuffer = (int*)malloc(state->bitmapWidth * state->bitmapHeight * sizeof(int));
 }
 
 static LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -44,6 +84,11 @@ static LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
+	case WM_SIZE: {
+		globalWindowWidth = LOWORD(lParam);
+		globalWindowHeight = HIWORD(lParam);
+		break;
+	}
 	default:
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
@@ -63,7 +108,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		return 1;
 	}
 
-	RECT clientRect = { 0, 0, GAME_WIDTH, GAME_HEIGHT };
+	int windowWidth = DEFAULT_WINDOW_WIDTH;
+	int windowHeight = DEFAULT_WINDOW_HEIGHT;
+
+	RECT clientRect = { 0, 0, windowWidth, windowHeight };
 	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 	AdjustWindowRect(&clientRect, windowStyle, NULL);
 	HWND hWnd = CreateWindowEx(NULL, wc.lpszClassName, L"Game of Life", windowStyle, 300, 0,
@@ -77,23 +125,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	//
-
-	const int bitmapWidth = GAME_WIDTH;
-	const int bitmapHeight = GAME_HEIGHT;
-
-	BITMAPINFO bitmapInfo = { 0 };
-	bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
-	bitmapInfo.bmiHeader.biWidth = bitmapWidth;
-	bitmapInfo.bmiHeader.biHeight = bitmapHeight;
-	bitmapInfo.bmiHeader.biPlanes = 1;
-	bitmapInfo.bmiHeader.biBitCount = 32;
-	bitmapInfo.bmiHeader.biCompression = BI_RGB;
-
-	int *bitmapBuffer = (int*)malloc(bitmapWidth * bitmapHeight * sizeof(int));
-
-	//
-
 	LARGE_INTEGER perfCounterFrequency = { 0 };
 	QueryPerformanceFrequency(&perfCounterFrequency);
 	LARGE_INTEGER perfCounter = { 0 };
@@ -104,20 +135,12 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	const float targetFps = 60.0f;
 	const float targetDt = 1.0f / targetFps;
 	
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
 
-	bool *cells1 = (bool *)malloc(CELL_ROWS*CELL_COLS*sizeof(bool));
-	bool *cells2 = (bool *)malloc(CELL_ROWS*CELL_COLS*sizeof(bool));
+	GameState *gameState = (GameState *)malloc(sizeof(GameState));
+	memset(gameState, 0, sizeof(GameState));
+	initGame(gameState, windowWidth, windowHeight);
 
-	bool *cells = cells1;
-	bool *newCells = cells2;
-
-	// Seed
-	for (int row = 0; row < CELL_ROWS; ++row)
-		for (int col = 0; col < CELL_COLS; ++col)
-			*(cells + row*CELL_COLS + col) = rand() % 2;
-
-	float tickTimer = 0.0f;
 	bool gameIsRunning = true;
 
 	while (gameIsRunning) {
@@ -148,19 +171,28 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 		}
 
+		//
 		// UPDATE
+		//
 
-		tickTimer += dt;
+		// When the window is resized, reinitialize the game with the new window size.
+		if (globalWindowWidth != windowWidth || globalWindowHeight != windowHeight) {
+			windowWidth = globalWindowWidth;
+			windowHeight = globalWindowHeight;
+			initGame(gameState, globalWindowWidth, globalWindowHeight);
+		}
 
-		if (tickTimer > TICK_DURATION) {
-			tickTimer = 0;
+		gameState->tickTimer += dt;
 
-			for (int row = 0; row < CELL_ROWS; ++row)
-				for (int col = 0; col < CELL_COLS; ++col) {
-					bool *cell = cells + row*CELL_COLS + col;
-					bool *newCell = newCells + row*CELL_COLS + col;
+		if (gameState->tickTimer > TICK_DURATION) {
+			gameState->tickTimer = 0;
+
+			for (int row = 0; row < gameState->cellRows; ++row)
+				for (int col = 0; col < gameState->cellCols; ++col) {
+					bool *cell = gameState->cells + row*gameState->cellCols + col;
+					bool *newCell = gameState->newCells + row*gameState->cellCols + col;
 					*newCell = *cell;
-					int liveNeighbours = getLiveNeighbourCount(cells, row, col);
+					int liveNeighbours = getLiveNeighbourCount(gameState, row, col);
 					if (*cell) {
 						if (liveNeighbours < 2 || liveNeighbours > 3)
 							*newCell = false;
@@ -171,19 +203,22 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					}
 				}
 
-			bool *tmp = cells;
-			cells = newCells;
-			newCells = tmp;
+			bool *tmp = gameState->cells;
+			gameState->cells = gameState->newCells;
+			gameState->newCells = tmp;
 		}
 
+		//
 		// RENDER
+		//
 
-		for (int row = 0; row < CELL_ROWS; ++row) {
-			for (int col = 0; col < CELL_COLS; ++col) {
-				int color = *(cells + row*CELL_COLS + col) ? CELL_COLOR_ALIVE : CELL_COLOR_DEAD;
+		for (int row = 0; row < gameState->cellRows; ++row) {
+			for (int col = 0; col < gameState->cellCols; ++col) {
+				bool *cell = gameState->cells + row*gameState->cellCols + col;
+				int color = *cell ? CELL_COLOR_ALIVE : CELL_COLOR_DEAD;
 				for (int r = 0; r < CELL_HEIGHT_PX; ++r) {
 					for (int c = 0; c < CELL_WIDTH_PX; ++c) {
-						int *pixel = bitmapBuffer + (row*CELL_HEIGHT_PX + r)*CELL_COLS*CELL_WIDTH_PX + col*CELL_WIDTH_PX + c;
+						int *pixel = gameState->bitmapBuffer + (row*CELL_HEIGHT_PX + r)*gameState->cellCols*CELL_WIDTH_PX + col*CELL_WIDTH_PX + c;
 						*pixel = color;
 					}
 				}
@@ -191,8 +226,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 
 		HDC hDC = GetDC(hWnd);
-		StretchDIBits(hDC, 0, 0, bitmapWidth, bitmapHeight, 0, 0, bitmapWidth, bitmapHeight,
-			bitmapBuffer, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+		StretchDIBits(hDC, 0, 0, gameState->bitmapWidth, gameState->bitmapHeight,
+			0, 0, gameState->bitmapWidth, gameState->bitmapHeight,
+			gameState->bitmapBuffer, gameState->bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 		ReleaseDC(hWnd, hDC);
 	}
 
