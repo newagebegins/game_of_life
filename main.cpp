@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <time.h>
 #include <assert.h>
+#include <stdio.h>
 
 static const int DEFAULT_WINDOW_WIDTH = 500;
 static const int DEFAULT_WINDOW_HEIGHT = 500;
@@ -132,6 +133,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	LARGE_INTEGER prevPerfCounter = { 0 };
 	
 	float dt = 0.0f;
+	float realDt = dt;
 	const float targetFps = 60.0f;
 	const float targetDt = 1.0f / targetFps;
 	
@@ -147,6 +149,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		prevPerfCounter = perfCounter;
 		QueryPerformanceCounter(&perfCounter);
 		dt = (float)(perfCounter.QuadPart - prevPerfCounter.QuadPart) / (float)perfCounterFrequency.QuadPart;
+		realDt = dt;
 		if (dt > targetDt)
 			dt = targetDt;
 
@@ -245,6 +248,12 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			0, 0, gameState->bitmapWidth, gameState->bitmapHeight,
 			gameState->bitmapBuffer, gameState->bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 		ReleaseDC(hWnd, hDC);
+
+#if 0
+		char textBuffer[256];
+		sprintf(textBuffer, "dt: %f, fps: %f\n", realDt, 1.0f/realDt);
+		OutputDebugStringA(textBuffer);
+#endif
 	}
 
 	return 0;
