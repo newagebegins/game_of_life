@@ -44,8 +44,11 @@ inline int getLiveNeighbourCount(GameState *state, const int row, const int col)
 }
 
 static void initGame(GameState *state, const int windowWidth, const int windowHeight) {
-	state->cellCols = windowWidth / CELL_WIDTH_PX;
-	state->cellRows = windowHeight / CELL_HEIGHT_PX;
+	state->bitmapWidth = (windowWidth / CELL_WIDTH_PX) * CELL_WIDTH_PX;
+	state->bitmapHeight = (windowHeight / CELL_HEIGHT_PX) * CELL_HEIGHT_PX;
+
+	state->cellCols = state->bitmapWidth / CELL_WIDTH_PX;
+	state->cellRows = state->bitmapHeight / CELL_HEIGHT_PX;
 
 	if (state->cells1) free(state->cells1);
 	state->cells1 = (bool *)malloc(state->cellRows * state->cellCols * sizeof(bool));
@@ -62,9 +65,6 @@ static void initGame(GameState *state, const int windowWidth, const int windowHe
 			*(state->cells + row*state->cellCols + col) = (rand() % 2) != 0;
 
 	state->tickTimer = 0.0f;
-
-	state->bitmapWidth = windowWidth;
-	state->bitmapHeight = windowHeight;
 
 	if (state->bitmapInfo) free(state->bitmapInfo);
 	state->bitmapInfo = (BITMAPINFO *)malloc(sizeof(BITMAPINFO));
@@ -84,11 +84,10 @@ static LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
-	case WM_SIZE: {
+	case WM_SIZE:
 		globalWindowWidth = LOWORD(lParam);
 		globalWindowHeight = HIWORD(lParam);
 		break;
-	}
 	default:
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
@@ -187,7 +186,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (gameState->tickTimer > TICK_DURATION) {
 			gameState->tickTimer = 0;
 
-			for (int row = 0; row < gameState->cellRows; ++row)
+			for (int row = 0; row < gameState->cellRows; ++row) {
 				for (int col = 0; col < gameState->cellCols; ++col) {
 					bool *cell = gameState->cells + row*gameState->cellCols + col;
 					bool *newCell = gameState->newCells + row*gameState->cellCols + col;
@@ -202,6 +201,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 							*newCell = true;
 					}
 				}
+			}
 
 			bool *tmp = gameState->cells;
 			gameState->cells = gameState->newCells;
