@@ -1,4 +1,38 @@
 #include <windows.h>
+#include <time.h>
+
+const int gameWindowWidth = 1000;
+const int gameWindowHeight = 1000;
+
+const int cellWidthPx = 5;
+const int cellHeightPx = 5;
+const int cellCols = gameWindowWidth / cellWidthPx;
+const int cellRows = gameWindowHeight / cellHeightPx;
+
+int getLiveNeighbourCount(bool *cells, int row, int col) {
+	int count = 0;
+	const int maxNeighbourCount = 8;
+	int neighbours[maxNeighbourCount][2] = {
+		{ -1, -1 },{ -1, 0 },{ -1, 1 },
+		{  0, -1 },          {  0, 1 },
+		{  1, -1 },{  1, 0 },{  1, 1 },
+	};
+
+	for (int i = 0; i < maxNeighbourCount; ++i) {
+		int r = (row + neighbours[i][0]) % cellRows;
+		if (r < 0)
+			r += cellRows;
+		int c = (col + neighbours[i][1]) % cellCols;
+		if (c < 0)
+			c += cellCols;
+		int offset = r*cellCols + c;
+		bool *cell = cells + offset;
+		if (*cell)
+			++count;
+	}
+	
+	return count;
+}
 
 LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
@@ -23,9 +57,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		MessageBox(NULL, L"RegisterClass failed!", NULL, NULL);
 		return 1;
 	}
-
-	const int gameWindowWidth = 960;
-	const int gameWindowHeight = 540;
 
 	RECT clientRect = { 0, 0, gameWindowWidth, gameWindowHeight };
 	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
@@ -54,17 +85,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	bitmapInfo.bmiHeader.biBitCount = 32;
 	bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-	const int bitmapBytesPerPixel = 4;
-	const int bitmapMemorySize = bitmapWidth * bitmapHeight * bitmapBytesPerPixel;
-	void *bitmapBuffer = VirtualAlloc(0, bitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-	{
-		int *pixel = (int*)bitmapBuffer;
-		for (int i = 0; i < bitmapMemorySize; i += bitmapBytesPerPixel) {
-			*pixel = 0xFFFF0000;
-			pixel++;
-		}
-	}
+	int *bitmapBuffer = (int*)malloc(bitmapWidth * bitmapHeight * sizeof(int));
 
 	//
 
@@ -79,6 +100,22 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	const float targetDt = 1.0f / targetFps;
 	
 	bool gameIsRunning = true;
+
+	srand(time(NULL));
+
+	bool *cells1 = (bool *)malloc(cellRows*cellCols*sizeof(bool));
+	bool *cells2 = (bool *)malloc(cellRows*cellCols*sizeof(bool));
+
+	bool *cells = cells1;
+	bool *newCells = cells2;
+
+	// Seed
+	for (int row = 0; row < cellRows; ++row)
+		for (int col = 0; col < cellCols; ++col)
+			*(cells + row*cellCols + col) = rand() % 2;
+
+	const float updateDuration = 0.1f;
+	float updateTimer = 0.0f;
 
 	while (gameIsRunning) {
 		prevPerfCounter = perfCounter;
@@ -107,6 +144,41 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				break;
 			}
 		}
+
+		updateTimer += dt;
+
+		if (updateTimer > updateDuration) {
+			updateTimer = 0;
+
+			for (int row = 0; row < cellRows; ++row)
+				for (int col = 0; col < cellCols; ++col) {
+					*(newCells + row*cellCols + col) = *(cells + row*cellCols + col);
+					int neighbourCount = getLiveNeighbourCount(cells, row, col);
+					if (*(cells + row*cellCols + col)) {
+						if (neighbourCount != 2 && neighbourCount != 3)
+							*(newCells + row*cellCols + col) = false;
+					}
+					else {
+						if (neighbourCount == 3)
+							*(newCells + row*cellCols + col) = true;
+					}
+				}
+
+			bool *tmp = cells;
+			cells = newCells;
+			newCells = tmp;
+		}
+
+		for (int row = 0; row < cellRows; ++row)
+			for (int col = 0; col < cellCols; ++col) {
+				int color = *(cells + row*cellCols + col) ? 0xFFFF0000 : 0xFF000000;
+				for (int r = 0; r < cellHeightPx; ++r) {
+					int *pixel = bitmapBuffer + (row*cellHeightPx + r)*cellCols*cellWidthPx + col*cellWidthPx;
+					for (int c = 0; c < cellWidthPx; ++c) {
+						*(pixel + c) = color;
+					}
+				}
+			}
 
 		HDC hDC = GetDC(hWnd);
 		StretchDIBits(hDC, 0, 0, bitmapWidth, bitmapHeight, 0, 0, bitmapWidth, bitmapHeight,
