@@ -107,8 +107,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		return 1;
 	}
 
-	int windowWidth = DEFAULT_WINDOW_WIDTH;
-	int windowHeight = DEFAULT_WINDOW_HEIGHT;
+	int windowWidth = globalWindowWidth = DEFAULT_WINDOW_WIDTH;
+	int windowHeight = globalWindowHeight = DEFAULT_WINDOW_HEIGHT;
 
 	RECT clientRect = { 0, 0, windowWidth, windowHeight };
 	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
