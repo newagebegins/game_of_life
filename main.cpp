@@ -12,7 +12,7 @@ const int cellRows = gameWindowHeight / cellHeightPx;
 int getLiveNeighbourCount(bool *cells, int row, int col) {
 	int count = 0;
 	const int maxNeighbourCount = 8;
-	int neighbours[maxNeighbourCount][2] = {
+	const int neighbours[maxNeighbourCount][2] = {
 		{ -1, -1 },{ -1, 0 },{ -1, 1 },
 		{  0, -1 },          {  0, 1 },
 		{  1, -1 },{  1, 0 },{  1, 1 },
@@ -25,8 +25,7 @@ int getLiveNeighbourCount(bool *cells, int row, int col) {
 		int c = (col + neighbours[i][1]) % cellCols;
 		if (c < 0)
 			c += cellCols;
-		int offset = r*cellCols + c;
-		bool *cell = cells + offset;
+		bool *cell = cells + r*cellCols + c;
 		if (*cell)
 			++count;
 	}
