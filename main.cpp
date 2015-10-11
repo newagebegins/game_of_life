@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <time.h>
+#include <assert.h>
 
 static const int DEFAULT_WINDOW_WIDTH = 500;
 static const int DEFAULT_WINDOW_HEIGHT = 500;
@@ -70,7 +71,7 @@ static void initGame(GameState *state, const int windowWidth, const int windowHe
 	state->bitmapInfo = (BITMAPINFO *)malloc(sizeof(BITMAPINFO));
 	state->bitmapInfo->bmiHeader.biSize = sizeof(state->bitmapInfo->bmiHeader);
 	state->bitmapInfo->bmiHeader.biWidth = state->bitmapWidth;
-	state->bitmapInfo->bmiHeader.biHeight = state->bitmapHeight;
+	state->bitmapInfo->bmiHeader.biHeight = -state->bitmapHeight;
 	state->bitmapInfo->bmiHeader.biPlanes = 1;
 	state->bitmapInfo->bmiHeader.biBitCount = 32;
 	state->bitmapInfo->bmiHeader.biCompression = BI_RGB;
@@ -181,8 +182,22 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			initGame(gameState, globalWindowWidth, globalWindowHeight);
 		}
 
-		gameState->tickTimer += dt;
+		// Handle the left mouse button: make the clicked cell alive.
+		if (GetKeyState(VK_LBUTTON) & (1 << 15)) {
+			POINT mousePos;
+			GetCursorPos(&mousePos);
+			ScreenToClient(hWnd, &mousePos);
 
+			int row = mousePos.y / CELL_HEIGHT_PX;
+			int col = mousePos.x / CELL_WIDTH_PX;
+
+			if (row < gameState->cellRows && col < gameState->cellCols) {
+				bool *cell = gameState->cells + row*gameState->cellCols + col;
+				*cell = true;
+			}
+		}
+
+		gameState->tickTimer += dt;
 		if (gameState->tickTimer > TICK_DURATION) {
 			gameState->tickTimer = 0;
 
