@@ -1,24 +1,27 @@
 #include <windows.h>
 #include <time.h>
 
-const int gameWindowWidth = 700;
-const int gameWindowHeight = 700;
+static const int gameWindowWidth = 700;
+static const int gameWindowHeight = 700;
 
-const int cellWidthPx = 5;
-const int cellHeightPx = 5;
-const int cellCols = gameWindowWidth / cellWidthPx;
-const int cellRows = gameWindowHeight / cellHeightPx;
+static const int cellWidthPx = 5;
+static const int cellHeightPx = 5;
 
-int getLiveNeighbourCount(bool *cells, int row, int col) {
+static const int cellCols = gameWindowWidth / cellWidthPx;
+static const int cellRows = gameWindowHeight / cellHeightPx;
+
+static const float tickDuration = 0.1f;
+
+inline int getLiveNeighbourCount(bool *cells, int row, int col) {
 	int count = 0;
-	const int maxNeighbourCount = 8;
-	const int neighbours[maxNeighbourCount][2] = {
+	const int neighbourCount = 8;
+	const int neighbours[neighbourCount][2] = {
 		{ -1, -1 },{ -1, 0 },{ -1, 1 },
 		{  0, -1 },          {  0, 1 },
 		{  1, -1 },{  1, 0 },{  1, 1 },
 	};
 
-	for (int i = 0; i < maxNeighbourCount; ++i) {
+	for (int i = 0; i < neighbourCount; ++i) {
 		int r = (row + neighbours[i][0]) % cellRows;
 		if (r < 0)
 			r += cellRows;
@@ -33,7 +36,7 @@ int getLiveNeighbourCount(bool *cells, int row, int col) {
 	return count;
 }
 
-LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+static LRESULT CALLBACK wndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -98,8 +101,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	const float targetFps = 60.0f;
 	const float targetDt = 1.0f / targetFps;
 	
-	bool gameIsRunning = true;
-
 	srand(time(NULL));
 
 	bool *cells1 = (bool *)malloc(cellRows*cellCols*sizeof(bool));
@@ -113,8 +114,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		for (int col = 0; col < cellCols; ++col)
 			*(cells + row*cellCols + col) = rand() % 2;
 
-	const float updateDuration = 0.1f;
-	float updateTimer = 0.0f;
+	float tickTimer = 0.0f;
+	bool gameIsRunning = true;
 
 	while (gameIsRunning) {
 		prevPerfCounter = perfCounter;
@@ -144,10 +145,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			}
 		}
 
-		updateTimer += dt;
+		tickTimer += dt;
 
-		if (updateTimer > updateDuration) {
-			updateTimer = 0;
+		if (tickTimer > tickDuration) {
+			tickTimer = 0;
 
 			for (int row = 0; row < cellRows; ++row)
 				for (int col = 0; col < cellCols; ++col) {
