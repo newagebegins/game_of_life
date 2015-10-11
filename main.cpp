@@ -1,8 +1,8 @@
 #include <windows.h>
 #include <time.h>
 
-const int gameWindowWidth = 1000;
-const int gameWindowHeight = 1000;
+const int gameWindowWidth = 700;
+const int gameWindowHeight = 700;
 
 const int cellWidthPx = 5;
 const int cellHeightPx = 5;
